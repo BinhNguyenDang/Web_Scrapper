@@ -6,7 +6,6 @@ Ruby is a time-tested, open-source programming language. Its first version was r
 
 We’ll begin with a step-by-step overview of scraping static public web pages first and shift our focus to the means of scraping dynamic pages. While the first approach works with most websites, it will not function with the dynamic pages that use JavaScript to render the content. To handle these sites, we’ll look at headless browsers.
 
-For a detailed explanation, see our [blog post](https://oxy.yt/Dr5a).
 
 ## Installing Ruby
 
@@ -30,7 +29,7 @@ sudo apt install ruby-full
 
 ## Scraping static pages
 
-In this section, we’ll write a web scraper that can scrape data from [https://sandbox.oxylabs.io/products])(https://sandbox.oxylabs.io/products) . It is a dummy video game store for practicing web scraping with static websites.
+In this section, we’ll write a web scraper that can scrape data from [https://books.toscrape.com]) . It is a dummy books store for practicing web scraping with static websites.
 
 ### Installing required gems
 
@@ -44,7 +43,7 @@ gem install csv
 
 ```ruby
 require 'httparty'
-response = HTTParty.get('https://sandbox.oxylabs.io/products')
+response = HTTParty.get('https://books.toscrape.com/catalogue/')
 if response.code == 200
     puts response.body
 else
@@ -63,21 +62,26 @@ document = Nokogiri::HTML4(response.body)
 ![](https://oxylabs.io/blog/images/2021/12/book_container.png)
 
 ```ruby
-games = []
+books = []
 50.times do |i|
-  url = "https://sandbox.oxylabs.io/products?page={i+1}"
-  response = HTTParty.get(url)
-  document = Nokogiri::HTML(response.body)
-  all_game_containers = document.css('.product-card')
+    response = HTTParty.get("https://books.toscrape.com/catalogue/page-#{i+1}.html")
+    if response.code == 200 
+      puts response.body
+    else
+      puts "Error: #{response.code} Unable to retrieve the web page."
+    end
 
-  all_game_containers.each do |container|
-    title = container.css('h4').text.strip
-    price = container.css('.price-wrapper').text.delete('^0-9.')
-    category_elements = container.css('.category span')
-    categories = category_elements.map { |elem| elem.text.strip }.join(', ')
-    game = [title, price, categories]
+    document = Nokogiri::HTML4(response.body)
+    all_book_containers = document.css('article.product_pod')
+
+    all_book_containers.each do |container|
+      title = container.css('h3 a').first['title']
+      price = container.css('.price_color').text.delete('^0-9.') # return only numbers and the period
+      availability = container.css('.availability').text.strip
+      book = [title, price, availability]
+      books << book
+    end
   end
-end
 
 ```
 
@@ -85,23 +89,31 @@ end
 
 ```ruby
 require 'csv'
+
+
 CSV.open(
-  'games.csv',
+  'books.csv',
   'w+',
   write_headers: true,
   headers: %w[Title, Price, Categories]
 ) do |csv|
   50.times do |i|
-    response = HTTParty.get("https://sandbox.oxylabs.io/products?page={i+1}")
+    response = HTTParty.get("https://books.toscrape.com/catalogue/page-#{i+1}.html")
+    if response.code == 200 
+      puts response.body
+    else
+      puts "Error: #{response.code} Unable to retrieve the web page."
+    end
+
     document = Nokogiri::HTML4(response.body)
-    all_game_containers = document.css('.product-card')
-    all_games_containers.each do |container|
-      title = container.css('h4').text.strip
-      price = container.css('.price-wrapper').text.delete('^0-9.')
-      category_elements = container.css('.category span')
-      categories = category_elements.map { |elem| elem.text.strip }.join(', ')    
-      game = [title, price, categories]
-      csv << game
+    all_book_containers = document.css('article.product_pod')
+
+    all_book_containers.each do |container|
+      title = container.css('h3 a').first['title']
+      price = container.css('.price_color').text.delete('^0-9.') # return only numbers and the period
+      availability = container.css('.availability').text.strip
+      book = [title, price, availability]
+      csv << book
     end
   end
 end
@@ -130,8 +142,6 @@ driver = Selenium::WebDriver.for(:chrome)
 ```ruby
 document = Nokogiri::HTML(driver.page_source)
 ```
-
-![](https://oxylabs.io/blog/images/2021/12/quotes_to_scrape.png)
 
 ```ruby
 quotes = []
